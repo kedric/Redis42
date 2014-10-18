@@ -167,7 +167,7 @@ void MySock::disconect_client(int client){
 		this->callback["onDisconnect"](client, "disconect");
 }
 
-s_cmd MySock::CmdParse(s_cmd *CmdParse){
+void MySock::CmdParse(s_cmd *CmdParse){
 	string entry = CmdParse->txt;
 	int state = 0;
 	int i = 0;
@@ -187,6 +187,7 @@ s_cmd MySock::CmdParse(s_cmd *CmdParse){
 		}
 		i++;
 	}
+
 }
 
 void MySock::Publish(s_cmd *Cmd){

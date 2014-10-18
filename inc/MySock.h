@@ -31,13 +31,12 @@ public:
 	void	execCmd(int Client);
 	void	Subscribe(s_cmd *cmd);
 	void	Publish(s_cmd *Cmd);
-	s_cmd	CmdParse(s_cmd *cmd);
+	void	CmdParse(s_cmd *cmd);
 private:
 	int												Socket;
 	int												Port;
 	struct											sockaddr_in	Sock_in;
 	std::list<int>									Read_lst;
-	// std::list<int>									Write_lst;
 	std::map<int, std::string>						Read_buff;
 	std::map<int, bool>								connected;
 	std::map<std::string, void(*)(int,std::string)>	callback;
