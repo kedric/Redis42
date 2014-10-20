@@ -6,7 +6,7 @@
 #    By: jmancero <jmancero@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2013/12/22 22:10:13 by jmancero          #+#    #+#              #
-#    Updated: 2014/10/15 13:41:05 by jmancero         ###   ########.fr        #
+#    Updated: 2014/10/19 10:44:37 by jmancero         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -35,7 +35,7 @@ FILE = 0
 
 #-Wextra -Werror -Wall lib/glew/libGLEW.a
 
-OBJFLAG =  -g  -g3 -fno-inline -O0
+OBJFLAG =  -g  -g3 -fno-inline -O0 -Wextra -Werror -Wall
 
 RED = \033[33;31m
 BLUE = \033[33;34m

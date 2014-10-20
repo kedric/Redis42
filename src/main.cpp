@@ -1,36 +1,33 @@
-#include "redis.h"
 #include "MySock.h"
 #include <cstdio>
 #include <unistd.h>
 
-MySock lilo = MySock(12341);
-Redis lol = Redis();
+MySock Sock = MySock(12342);
+std::map<std::string, std::string> memory;
 
 
-void publishHandler(int src, int fd, string msg){
-	if (src != fd)
-		lilo.sendto(fd, msg + '\n');
+void helloworld(s_SockCmd *cmd){
+	std::cout << cmd->txt << std::endl;
 }
 
-void helloworld(int fd, string msg){
-	cout << msg << endl;
+void getvalue(s_SockCmd *cmd){
+	std::cout << cmd->txt << std::endl;
+	Sock.emit(cmd->src, memory[cmd->key]+ '\n');
 }
 
-void recvdata(int fd, string msg){
-	// cout << msg;
-	cout << msg << endl;
-	lilo.sendto(fd, "lol\n");
+void setvalue(s_SockCmd *cmd){
+	std::cout << cmd->value << std::endl;
+	memory[cmd->key] = cmd->value;
+	Sock.emit(cmd->src, "+OK\r\n");
 }
 
 int main(){
-
-
-	string a;
-
-	lilo.on("onConnect", helloworld);
-	lilo.on("onDisconnect", helloworld);
-
-	lilo.loop();
+	Sock.on("onConnect", helloworld);
+	Sock.on("onDisconnect", helloworld);
+	Sock.on("GET", getvalue);
+	Sock.on("SET", setvalue);
+	Sock.on("recv", helloworld);
+	Sock.loop();
 
 	return(0);
 

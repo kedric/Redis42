@@ -26,6 +26,8 @@ MySock::MySock(int port){
 	this->Read_lst.push_back(this->Socket);
 	cout << "Socket Open port:" << port << endl;
 
+	this->Max_fd= 0;
+
 	this->tv.tv_sec = 5;
 	this->tv.tv_usec = 0;
 
@@ -34,18 +36,25 @@ MySock::MySock(int port){
 void MySock::init_Accept(){
 	int client_len;
 	struct	sockaddr_in	client_addr;
+	s_SockCmd cmd;
 	// renvoy un FD de reponce sur une nouvelle socket
 	int Client_socket_fd = accept(this->Socket, (struct sockaddr *) &client_addr, (socklen_t *) &client_len);
 	if (Client_socket_fd < 0)
 		cout << "ERROR on accept" << endl;
 	else
 		printf("nouvelle utilisateur connecter Adress : %s FileDescriptor: %d\n", inet_ntoa(client_addr.sin_addr), Client_socket_fd);
-		if (this->callback["onConnect"])
-			this->callback["onConnect"](Client_socket_fd, "Connected");
+		if (this->callback["onConnect"]){
+			cmd.cmd = "connection";
+			cmd.value = "connection";
+			cmd.txt = "connection";
+			cmd.src = Client_socket_fd;
+			if (this->callback["onConnect"])
+				this->callback["onConnect"](&cmd);
+		}
 		this->Read_lst.push_back(Client_socket_fd);
 		this->connected[Client_socket_fd] = true;
-		this->Max_fd = Client_socket_fd;
-		this->sendto(Client_socket_fd, "hello\n");
+		if (this->Max_fd < Client_socket_fd)
+			this->Max_fd = Client_socket_fd;
 };
 
 
@@ -57,7 +66,7 @@ void MySock::sendto(int client, std::string buffer){
 	}
 };
 
-void MySock::init_fd(fd_set *to_set, fd_set *Write){
+void MySock::init_fd(fd_set *to_set){
 	list<int> lst;
 	lst = this->Read_lst;
 	FD_ZERO(to_set);
@@ -79,10 +88,9 @@ void MySock::init_fd(fd_set *to_set, fd_set *Write){
 
 void MySock::DoSelect(){
 	fd_set Read_fds;
-	fd_set Write_fds;
 	int retval;
 
-	this->init_fd(&Read_fds, &Write_fds);
+	this->init_fd(&Read_fds);
 
 	retval = select(this->Max_fd + 1, &Read_fds, NULL, NULL, &this->tv);
 
@@ -123,18 +131,21 @@ void MySock::checkFd(fd_set *Read){
 void MySock::execCmd(int Client){
 	int nextl = Read_buff[Client].find_first_of('\n');
 	while (nextl >= 0){
-		s_cmd Cmd;
+		s_SockCmd Cmd;
 		Cmd.src = Client;
 		Cmd.txt = this->Read_buff[Client].substr(0,nextl);
+		cout << Cmd.txt << endl;
 		this->CmdParse(&Cmd);
 		if (this->callback[Cmd.cmd])
-			this->callback[Cmd.cmd](Cmd.src, Cmd.value);
+			this->callback[Cmd.cmd](&Cmd);
 		else if (Cmd.cmd == "PUBLISH")
 			this->Publish(&Cmd);
 		else if (Cmd.cmd == "SUBSCRIBE")
 			this->Subscribe(&Cmd);
 		else
 			this->sendto(Cmd.src, "Command not found\n");
+		if (this->callback["recv"])
+			this->callback[Cmd.cmd](&Cmd);
 
 		this->Read_buff[Client] = this->Read_buff[Client].substr(nextl + 1);
 		nextl = this->Read_buff[Client].find_first_of('\n');
@@ -142,7 +153,7 @@ void MySock::execCmd(int Client){
 
 }
 
-void MySock::on(string event, void (*fnc)(int, string)){
+void MySock::on(string event, void (*fnc)(s_SockCmd *)){
 	this->callback[event] = fnc;
 }
 /*
@@ -160,14 +171,21 @@ void MySock::loop(){
 ** la fomction est appeler lors d'un retour de 0 a la lecture des fd
 */
 void MySock::disconect_client(int client){
+	s_SockCmd cmd;
+	cmd.cmd = "disconect";
+	cmd.value = "disconect";
+	cmd.txt = "disconect";
+	cmd.src = client;
+	// this->Max_fd = getMax();
 	Read_lst.remove(client);
+
 	this->connected[client] = false;
 	close(client);
 	if (this->callback["onDisconnect"])
-		this->callback["onDisconnect"](client, "disconect");
+		this->callback["onDisconnect"](&cmd);
 }
 
-void MySock::CmdParse(s_cmd *CmdParse){
+void MySock::CmdParse(s_SockCmd *CmdParse){
 	string entry = CmdParse->txt;
 	int state = 0;
 	int i = 0;
@@ -189,21 +207,41 @@ void MySock::CmdParse(s_cmd *CmdParse){
 	}
 
 }
+void MySock::broadcast(string msg){
+	list<int>::iterator it = this->Read_lst.begin();
 
-void MySock::Publish(s_cmd *Cmd){
+	while (it != this->Read_lst.end()){
+		this->emit(*it, msg);
+		it++;
+	}
+};
+void MySock::Publish(s_SockCmd *Cmd){
 	list<int>::iterator it = this->listener[Cmd->key].begin();
 	Cmd->value += '\n';
-	while (it != this->listener[Cmd->key].end() && *it != Cmd->src){
-		this->sendto(*it, Cmd->value);
+	while (it != this->listener[Cmd->key].end()){
+		if (*it != Cmd->src)
+			this->sendto(*it, Cmd->value);
 		it++;
 	}
 	this->sendto(Cmd->src,"ok\n");
 }
 
-void MySock::Subscribe(s_cmd *cmd){
+void MySock::Subscribe(s_SockCmd *cmd){
 	this->listener[cmd->key].push_back(cmd->src);
 	this->sendto(cmd->src,"ok\n");
 
-	}
+}
+
+void MySock::emit(string channel, string msg){
+	s_SockCmd toSent;
+	toSent.key = channel;
+	toSent.src = 0;
+	toSent.value = msg;
+	this->Publish(&toSent);
+}
+
+void MySock::emit(int to, string msg){
+	this->sendto(to, msg);
+}
 
 MySock::~MySock(){};
